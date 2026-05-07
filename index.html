@@ -2,59 +2,146 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>囲碁ゲーム</title>
+<title>9路囲碁 CPU対戦</title>
+
 <style>
-  body {
-    margin: 0;
-    font-family: sans-serif;
-    background: #222;
-    color: white;
-    text-align: center;
-  }
+body{
+  margin:0;
+  background:#222;
+  color:white;
+  text-align:center;
+  font-family:sans-serif;
+  overflow-x:hidden;
+}
 
-  h1 {
-    margin: 16px 0 8px;
-  }
+h1{
+  margin:16px 0 8px;
+}
 
-  #info {
-    margin-bottom: 10px;
-    font-size: 18px;
-  }
+#info{
+  font-size:18px;
+  margin-bottom:10px;
+}
 
-  canvas {
-    background: #d9a441;
-    border: 10px solid #7a4a12;
-    border-radius: 8px;
-    box-shadow: 0 0 20px #000;
-    cursor: pointer;
-  }
+#score{
+  margin:8px;
+  font-size:16px;
+  color:#ffd966;
+}
 
-  button {
-    margin: 10px 5px;
-    padding: 10px 18px;
-    font-size: 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-  }
+canvas{
+  background:#d9a441;
+  border:10px solid #7a4a12;
+  border-radius:8px;
+  box-shadow:0 0 20px #000;
+  cursor:pointer;
+  max-width:95vw;
+  height:auto;
+}
 
-  #reset {
-    background: #f44336;
-    color: white;
-  }
+button{
+  margin:10px 5px;
+  padding:10px 18px;
+  font-size:16px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
 
-  #pass {
-    background: #2196f3;
-    color: white;
+#reset{
+  background:#f44336;
+  color:white;
+}
+
+#pass{
+  background:#2196f3;
+  color:white;
+}
+
+/* 広告枠 */
+
+.side-ad{
+  position:fixed;
+  top:80px;
+  width:160px;
+  height:600px;
+  background:#333;
+  border:2px solid #555;
+  border-radius:10px;
+  box-shadow:0 0 12px #000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:white;
+  font-size:20px;
+  z-index:10;
+}
+
+.left-ad{
+  left:20px;
+}
+
+.right-ad{
+  right:20px;
+}
+
+/* スマホ時は広告非表示 */
+
+@media(max-width:1200px){
+  .side-ad{
+    display:none;
   }
+}
 </style>
 </head>
+
 <body>
 
-<h1>囲碁ゲーム</h1>
-<div id="info">黒の番です</div>
+<!-- 左広告 -->
+<div class="side-ad left-ad">
 
-<canvas id="board" width="640" height="640"></canvas>
+ <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8398161859137802"
+     crossorigin="anonymous"></script>
+<!-- チェス -->
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8398161859137802"
+     data-ad-slot="5599163841"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>
+     (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+
+</div>
+
+<!-- 右広告 -->
+<div class="side-ad right-ad">
+
+ <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8398161859137802"
+     crossorigin="anonymous"></script>
+<!-- チェス -->
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8398161859137802"
+     data-ad-slot="5599163841"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>
+     (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+
+</div>
+
+<h1>9路囲碁 CPU対戦</h1>
+
+<div id="info">黒の番です（あなた）</div>
+
+<div id="score">
+  黒：0　白：0
+</div>
+
+<canvas id="board" width="620" height="620"></canvas>
 
 <div>
   <button id="pass">パス</button>
@@ -62,38 +149,48 @@
 </div>
 
 <script>
+
 const canvas = document.getElementById("board");
 const ctx = canvas.getContext("2d");
-const info = document.getElementById("info");
 
-const size = 19;
-const margin = 40;
+const info = document.getElementById("info");
+const scoreText = document.getElementById("score");
+
+const size = 9;
+const margin = 55;
 const cell = (canvas.width - margin * 2) / (size - 1);
 
-let board = Array.from({ length: size }, () => Array(size).fill(0));
-let currentPlayer = 1; // 1黒, 2白
+const HUMAN = 1;
+const CPU = 2;
+
+let board = Array.from({length:size},()=>Array(size).fill(0));
+
+let currentPlayer = HUMAN;
 let passCount = 0;
+let gameOver = false;
 
-function drawBoard() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawBoard(){
 
-  ctx.fillStyle = "#d9a441";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  ctx.strokeStyle = "#222";
-  ctx.lineWidth = 1.5;
+  ctx.fillStyle="#d9a441";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  for (let i = 0; i < size; i++) {
-    const pos = margin + i * cell;
+  ctx.strokeStyle="#222";
+  ctx.lineWidth=2;
+
+  for(let i=0;i<size;i++){
+
+    const p = margin + i * cell;
 
     ctx.beginPath();
-    ctx.moveTo(margin, pos);
-    ctx.lineTo(canvas.width - margin, pos);
+    ctx.moveTo(margin,p);
+    ctx.lineTo(canvas.width-margin,p);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(pos, margin);
-    ctx.lineTo(pos, canvas.height - margin);
+    ctx.moveTo(p,margin);
+    ctx.lineTo(p,canvas.height-margin);
     ctx.stroke();
   }
 
@@ -101,128 +198,405 @@ function drawBoard() {
   drawStones();
 }
 
-function drawStarPoints() {
-  const points = [3, 9, 15];
+function drawStarPoints(){
 
-  ctx.fillStyle = "#222";
+  const points = [2,4,6];
 
-  for (let x of points) {
-    for (let y of points) {
-      ctx.beginPath();
-      ctx.arc(margin + x * cell, margin + y * cell, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-}
+  ctx.fillStyle="#222";
 
-function drawStones() {
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (board[y][x] !== 0) {
-        drawStone(x, y, board[y][x]);
+  for(const x of points){
+
+    for(const y of points){
+
+      if((x===4 && y===4) || (x!==4 && y!==4)){
+
+        ctx.beginPath();
+
+        ctx.arc(
+          margin+x*cell,
+          margin+y*cell,
+          5,
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
       }
     }
   }
 }
 
-function drawStone(x, y, player) {
+function drawStones(){
+
+  for(let y=0;y<size;y++){
+
+    for(let x=0;x<size;x++){
+
+      if(board[y][x] !== 0){
+
+        drawStone(x,y,board[y][x]);
+      }
+    }
+  }
+}
+
+function drawStone(x,y,player){
+
   const px = margin + x * cell;
   const py = margin + y * cell;
+
   const r = cell * 0.42;
 
-  const gradient = ctx.createRadialGradient(
-    px - r / 3,
-    py - r / 3,
+  const g = ctx.createRadialGradient(
+    px-r/3,
+    py-r/3,
     2,
     px,
     py,
     r
   );
 
-  if (player === 1) {
-    gradient.addColorStop(0, "#555");
-    gradient.addColorStop(1, "#000");
-  } else {
-    gradient.addColorStop(0, "#fff");
-    gradient.addColorStop(1, "#bbb");
+  if(player === HUMAN){
+
+    g.addColorStop(0,"#555");
+    g.addColorStop(1,"#000");
+
+  }else{
+
+    g.addColorStop(0,"#fff");
+    g.addColorStop(1,"#bbb");
   }
 
   ctx.beginPath();
-  ctx.arc(px, py, r, 0, Math.PI * 2);
-  ctx.fillStyle = gradient;
+
+  ctx.arc(px,py,r,0,Math.PI*2);
+
+  ctx.fillStyle=g;
   ctx.fill();
-  ctx.strokeStyle = "#111";
+
+  ctx.strokeStyle="#111";
   ctx.stroke();
 }
 
-canvas.addEventListener("click", e => {
+canvas.addEventListener("click", e=>{
+
+  if(gameOver) return;
+  if(currentPlayer !== HUMAN) return;
+
   const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
 
-  const x = Math.round((mouseX - margin) / cell);
-  const y = Math.round((mouseY - margin) / cell);
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
 
-  if (x < 0 || x >= size || y < 0 || y >= size) return;
-  if (board[y][x] !== 0) return;
+  const x = Math.round((mx - margin) / cell);
+  const y = Math.round((my - margin) / cell);
 
-  board[y][x] = currentPlayer;
+  if(playMove(x,y,HUMAN)){
 
-  const enemy = currentPlayer === 1 ? 2 : 1;
-  let captured = false;
+    updateScorePreview();
 
-  for (const [nx, ny] of getNeighbors(x, y)) {
-    if (board[ny][nx] === enemy) {
-      const group = getGroup(nx, ny);
-      if (!hasLiberty(group)) {
-        removeGroup(group);
-        captured = true;
+    currentPlayer = CPU;
+
+    info.textContent = "白の番です（CPU思考中）";
+
+    setTimeout(cpuMove,500);
+  }
+});
+
+function cpuMove(){
+
+  if(gameOver) return;
+
+  const move = findBestCpuMove();
+
+  if(move){
+
+    playMove(move.x,move.y,CPU);
+
+    currentPlayer = HUMAN;
+
+    info.textContent = "黒の番です（あなた）";
+
+  }else{
+
+    passCount++;
+
+    if(passCount >= 2){
+
+      endGame();
+      return;
+    }
+
+    currentPlayer = HUMAN;
+
+    info.textContent =
+      "CPUがパスしました。黒の番です";
+  }
+
+  updateScorePreview();
+  drawBoard();
+}
+
+function findBestCpuMove(){
+
+  let best = null;
+  let bestScore = -999999;
+
+  for(let y=0;y<size;y++){
+
+    for(let x=0;x<size;x++){
+
+      if(board[y][x] !== 0) continue;
+
+      const result = simulateMove(x,y,CPU);
+
+      if(!result.legal) continue;
+
+      let score = 0;
+
+      score += result.captured * 80;
+
+      score += countAdjacent(x,y,CPU) * 12;
+
+      score += countAdjacent(x,y,HUMAN) * 8;
+
+      score += attackWeakEnemy(x,y) * 18;
+
+      score += saveWeakGroup(x,y) * 25;
+
+      const centerDist =
+        Math.abs(x-4) + Math.abs(y-4);
+
+      score += Math.max(0,8-centerDist) * 2;
+
+      if((x===2 || x===6)
+      && (y===2 || y===6)){
+
+        score += 10;
+      }
+
+      if((x===0 || x===8)
+      && (y===0 || y===8)){
+
+        score -= 8;
+      }
+
+      score += Math.random() * 5;
+
+      if(score > bestScore){
+
+        bestScore = score;
+        best = {x,y};
       }
     }
   }
 
-  const ownGroup = getGroup(x, y);
-  if (!hasLiberty(ownGroup) && !captured) {
+  return best;
+}
+
+function attackWeakEnemy(x,y){
+
+  let score = 0;
+
+  for(const [nx,ny] of getNeighbors(x,y)){
+
+    if(board[ny][nx] === HUMAN){
+
+      const group = getGroup(nx,ny);
+
+      const libs = countLiberties(group);
+
+      if(libs === 1) score += 5;
+      if(libs === 2) score += 3;
+      if(libs === 3) score += 1;
+    }
+  }
+
+  return score;
+}
+
+function saveWeakGroup(x,y){
+
+  let score = 0;
+
+  for(const [nx,ny] of getNeighbors(x,y)){
+
+    if(board[ny][nx] === CPU){
+
+      const group = getGroup(nx,ny);
+
+      const libs = countLiberties(group);
+
+      if(libs === 1) score += 5;
+      if(libs === 2) score += 3;
+    }
+  }
+
+  return score;
+}
+
+function countAdjacent(x,y,player){
+
+  let count = 0;
+
+  for(const [nx,ny] of getNeighbors(x,y)){
+
+    if(board[ny][nx] === player){
+
+      count++;
+    }
+  }
+
+  return count;
+}
+
+function playMove(x,y,player){
+
+  if(x<0 || x>=size || y<0 || y>=size){
+
+    return false;
+  }
+
+  if(board[y][x] !== 0){
+
+    return false;
+  }
+
+  board[y][x] = player;
+
+  const enemy =
+    player === HUMAN ? CPU : HUMAN;
+
+  let captured = 0;
+
+  for(const [nx,ny] of getNeighbors(x,y)){
+
+    if(board[ny][nx] === enemy){
+
+      const group = getGroup(nx,ny);
+
+      if(!hasLiberty(group)){
+
+        captured += group.length;
+
+        removeGroup(group);
+      }
+    }
+  }
+
+  const ownGroup = getGroup(x,y);
+
+  if(!hasLiberty(ownGroup)
+  && captured === 0){
+
     board[y][x] = 0;
-    alert("そこには置けません");
-    return;
+
+    if(player === HUMAN){
+
+      alert("そこには置けません");
+    }
+
+    return false;
   }
 
   passCount = 0;
-  switchPlayer();
-  drawBoard();
-});
 
-function getNeighbors(x, y) {
+  drawBoard();
+
+  return true;
+}
+
+function simulateMove(x,y,player){
+
+  const backup = copyBoard(board);
+
+  let captured = 0;
+
+  if(x<0 || x>=size || y<0 || y>=size){
+
+    return {legal:false,captured:0};
+  }
+
+  if(board[y][x] !== 0){
+
+    return {legal:false,captured:0};
+  }
+
+  board[y][x] = player;
+
+  const enemy =
+    player === HUMAN ? CPU : HUMAN;
+
+  for(const [nx,ny] of getNeighbors(x,y)){
+
+    if(board[ny][nx] === enemy){
+
+      const group = getGroup(nx,ny);
+
+      if(!hasLiberty(group)){
+
+        captured += group.length;
+
+        removeGroup(group);
+      }
+    }
+  }
+
+  const ownGroup = getGroup(x,y);
+
+  const legal =
+    hasLiberty(ownGroup) || captured > 0;
+
+  board = backup;
+
+  return {legal,captured};
+}
+
+function getNeighbors(x,y){
+
   const dirs = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1]
+    [1,0],
+    [-1,0],
+    [0,1],
+    [0,-1]
   ];
 
   return dirs
-    .map(([dx, dy]) => [x + dx, y + dy])
-    .filter(([nx, ny]) => nx >= 0 && nx < size && ny >= 0 && ny < size);
+    .map(([dx,dy])=>[x+dx,y+dy])
+    .filter(([nx,ny])=>
+      nx>=0 && nx<size &&
+      ny>=0 && ny<size
+    );
 }
 
-function getGroup(x, y) {
-  const player = board[y][x];
-  const visited = new Set();
-  const group = [];
-  const stack = [[x, y]];
+function getGroup(x,y){
 
-  while (stack.length > 0) {
-    const [cx, cy] = stack.pop();
+  const player = board[y][x];
+
+  const visited = new Set();
+
+  const group = [];
+
+  const stack = [[x,y]];
+
+  while(stack.length){
+
+    const [cx,cy] = stack.pop();
+
     const key = cx + "," + cy;
 
-    if (visited.has(key)) continue;
-    visited.add(key);
-    group.push([cx, cy]);
+    if(visited.has(key)) continue;
 
-    for (const [nx, ny] of getNeighbors(cx, cy)) {
-      if (board[ny][nx] === player) {
-        stack.push([nx, ny]);
+    visited.add(key);
+
+    group.push([cx,cy]);
+
+    for(const [nx,ny]
+    of getNeighbors(cx,cy)){
+
+      if(board[ny][nx] === player){
+
+        stack.push([nx,ny]);
       }
     }
   }
@@ -230,48 +604,203 @@ function getGroup(x, y) {
   return group;
 }
 
-function hasLiberty(group) {
-  for (const [x, y] of group) {
-    for (const [nx, ny] of getNeighbors(x, y)) {
-      if (board[ny][nx] === 0) {
-        return true;
+function hasLiberty(group){
+
+  return countLiberties(group) > 0;
+}
+
+function countLiberties(group){
+
+  const libs = new Set();
+
+  for(const [x,y] of group){
+
+    for(const [nx,ny] of getNeighbors(x,y)){
+
+      if(board[ny][nx] === 0){
+
+        libs.add(nx + "," + ny);
       }
     }
   }
-  return false;
+
+  return libs.size;
 }
 
-function removeGroup(group) {
-  for (const [x, y] of group) {
+function removeGroup(group){
+
+  for(const [x,y] of group){
+
     board[y][x] = 0;
   }
 }
 
-function switchPlayer() {
-  currentPlayer = currentPlayer === 1 ? 2 : 1;
-  info.textContent = currentPlayer === 1 ? "黒の番です" : "白の番です";
+function copyBoard(src){
+
+  return src.map(row=>row.slice());
 }
 
-document.getElementById("pass").addEventListener("click", () => {
+function calculateScore(){
+
+  let black = 0;
+  let white = 0;
+
+  const visited = new Set();
+
+  for(let y=0;y<size;y++){
+
+    for(let x=0;x<size;x++){
+
+      if(board[y][x] === HUMAN){
+
+        black++;
+      }
+
+      if(board[y][x] === CPU){
+
+        white++;
+      }
+
+      if(board[y][x] === 0){
+
+        const key = x + "," + y;
+
+        if(visited.has(key)) continue;
+
+        const area = [];
+        const borders = new Set();
+
+        const stack = [[x,y]];
+
+        while(stack.length){
+
+          const [cx,cy] = stack.pop();
+
+          const k = cx + "," + cy;
+
+          if(visited.has(k)) continue;
+
+          visited.add(k);
+
+          area.push([cx,cy]);
+
+          for(const [nx,ny]
+          of getNeighbors(cx,cy)){
+
+            if(board[ny][nx] === 0){
+
+              stack.push([nx,ny]);
+
+            }else{
+
+              borders.add(board[ny][nx]);
+            }
+          }
+        }
+
+        if(borders.size === 1){
+
+          if(borders.has(HUMAN)){
+
+            black += area.length;
+          }
+
+          if(borders.has(CPU)){
+
+            white += area.length;
+          }
+        }
+      }
+    }
+  }
+
+  white += 6.5;
+
+  return {black,white};
+}
+
+function updateScorePreview(){
+
+  const s = calculateScore();
+
+  scoreText.textContent =
+    `黒：${s.black}　白：${s.white}`;
+}
+
+document.getElementById("pass")
+.addEventListener("click",()=>{
+
+  if(gameOver) return;
+
+  if(currentPlayer !== HUMAN) return;
+
   passCount++;
 
-  if (passCount >= 2) {
-    alert("両者パスしました。対局終了です。");
+  if(passCount >= 2){
+
+    endGame();
     return;
   }
 
-  switchPlayer();
+  currentPlayer = CPU;
+
+  info.textContent =
+    "あなたがパスしました。CPUの番です";
+
+  setTimeout(cpuMove,500);
 });
 
-document.getElementById("reset").addEventListener("click", () => {
-  board = Array.from({ length: size }, () => Array(size).fill(0));
-  currentPlayer = 1;
+document.getElementById("reset")
+.addEventListener("click",()=>{
+
+  board = Array.from(
+    {length:size},
+    ()=>Array(size).fill(0)
+  );
+
+  currentPlayer = HUMAN;
+
   passCount = 0;
-  info.textContent = "黒の番です";
+
+  gameOver = false;
+
+  info.textContent =
+    "黒の番です（あなた）";
+
+  scoreText.textContent =
+    "黒：0　白：0";
+
   drawBoard();
 });
 
+function endGame(){
+
+  gameOver = true;
+
+  const s = calculateScore();
+
+  let result = "";
+
+  if(s.black > s.white){
+
+    result =
+      `黒の勝ち！ ${s.black} 対 ${s.white}`;
+
+  }else{
+
+    result =
+      `白の勝ち！ ${s.black} 対 ${s.white}`;
+  }
+
+  info.textContent = "対局終了";
+
+  scoreText.textContent = result;
+
+  alert(result);
+}
+
 drawBoard();
+
 </script>
 
 </body>
