@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>囲碁ゲーム</title>
+<style>
+  body {
+    margin: 0;
+    font-family: sans-serif;
+    background: #222;
+    color: white;
+    text-align: center;
+  }
+
+  h1 {
+    margin: 16px 0 8px;
+  }
+
+  #info {
+    margin-bottom: 10px;
+    font-size: 18px;
+  }
+
+  canvas {
+    background: #d9a441;
+    border: 10px solid #7a4a12;
+    border-radius: 8px;
+    box-shadow: 0 0 20px #000;
+    cursor: pointer;
+  }
+
+  button {
+    margin: 10px 5px;
+    padding: 10px 18px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  #reset {
+    background: #f44336;
+    color: white;
+  }
+
+  #pass {
+    background: #2196f3;
+    color: white;
+  }
+</style>
+</head>
+<body>
+
+<h1>囲碁ゲーム</h1>
+<div id="info">黒の番です</div>
+
+<canvas id="board" width="640" height="640"></canvas>
+
+<div>
+  <button id="pass">パス</button>
+  <button id="reset">リセット</button>
+</div>
+
+<script>
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+const info = document.getElementById("info");
+
+const size = 19;
+const margin = 40;
+const cell = (canvas.width - margin * 2) / (size - 1);
+
+let board = Array.from({ length: size }, () => Array(size).fill(0));
+let currentPlayer = 1; // 1黒, 2白
+let passCount = 0;
+
+function drawBoard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#d9a441";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 1.5;
+
+  for (let i = 0; i < size; i++) {
+    const pos = margin + i * cell;
+
+    ctx.beginPath();
+    ctx.moveTo(margin, pos);
+    ctx.lineTo(canvas.width - margin, pos);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(pos, margin);
+    ctx.lineTo(pos, canvas.height - margin);
+    ctx.stroke();
+  }
+
+  drawStarPoints();
+  drawStones();
+}
+
+function drawStarPoints() {
+  const points = [3, 9, 15];
+
+  ctx.fillStyle = "#222";
+
+  for (let x of points) {
+    for (let y of points) {
+      ctx.beginPath();
+      ctx.arc(margin + x * cell, margin + y * cell, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawStones() {
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (board[y][x] !== 0) {
+        drawStone(x, y, board[y][x]);
+      }
+    }
+  }
+}
+
+function drawStone(x, y, player) {
+  const px = margin + x * cell;
+  const py = margin + y * cell;
+  const r = cell * 0.42;
+
+  const gradient = ctx.createRadialGradient(
+    px - r / 3,
+    py - r / 3,
+    2,
+    px,
+    py,
+    r
+  );
+
+  if (player === 1) {
+    gradient.addColorStop(0, "#555");
+    gradient.addColorStop(1, "#000");
+  } else {
+    gradient.addColorStop(0, "#fff");
+    gradient.addColorStop(1, "#bbb");
+  }
+
+  ctx.beginPath();
+  ctx.arc(px, py, r, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.strokeStyle = "#111";
+  ctx.stroke();
+}
+
+canvas.addEventListener("click", e => {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  const x = Math.round((mouseX - margin) / cell);
+  const y = Math.round((mouseY - margin) / cell);
+
+  if (x < 0 || x >= size || y < 0 || y >= size) return;
+  if (board[y][x] !== 0) return;
+
+  board[y][x] = currentPlayer;
+
+  const enemy = currentPlayer === 1 ? 2 : 1;
+  let captured = false;
+
+  for (const [nx, ny] of getNeighbors(x, y)) {
+    if (board[ny][nx] === enemy) {
+      const group = getGroup(nx, ny);
+      if (!hasLiberty(group)) {
+        removeGroup(group);
+        captured = true;
+      }
+    }
+  }
+
+  const ownGroup = getGroup(x, y);
+  if (!hasLiberty(ownGroup) && !captured) {
+    board[y][x] = 0;
+    alert("そこには置けません");
+    return;
+  }
+
+  passCount = 0;
+  switchPlayer();
+  drawBoard();
+});
+
+function getNeighbors(x, y) {
+  const dirs = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1]
+  ];
+
+  return dirs
+    .map(([dx, dy]) => [x + dx, y + dy])
+    .filter(([nx, ny]) => nx >= 0 && nx < size && ny >= 0 && ny < size);
+}
+
+function getGroup(x, y) {
+  const player = board[y][x];
+  const visited = new Set();
+  const group = [];
+  const stack = [[x, y]];
+
+  while (stack.length > 0) {
+    const [cx, cy] = stack.pop();
+    const key = cx + "," + cy;
+
+    if (visited.has(key)) continue;
+    visited.add(key);
+    group.push([cx, cy]);
+
+    for (const [nx, ny] of getNeighbors(cx, cy)) {
+      if (board[ny][nx] === player) {
+        stack.push([nx, ny]);
+      }
+    }
+  }
+
+  return group;
+}
+
+function hasLiberty(group) {
+  for (const [x, y] of group) {
+    for (const [nx, ny] of getNeighbors(x, y)) {
+      if (board[ny][nx] === 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function removeGroup(group) {
+  for (const [x, y] of group) {
+    board[y][x] = 0;
+  }
+}
+
+function switchPlayer() {
+  currentPlayer = currentPlayer === 1 ? 2 : 1;
+  info.textContent = currentPlayer === 1 ? "黒の番です" : "白の番です";
+}
+
+document.getElementById("pass").addEventListener("click", () => {
+  passCount++;
+
+  if (passCount >= 2) {
+    alert("両者パスしました。対局終了です。");
+    return;
+  }
+
+  switchPlayer();
+});
+
+document.getElementById("reset").addEventListener("click", () => {
+  board = Array.from({ length: size }, () => Array(size).fill(0));
+  currentPlayer = 1;
+  passCount = 0;
+  info.textContent = "黒の番です";
+  drawBoard();
+});
+
+drawBoard();
+</script>
+
+</body>
+</html>
