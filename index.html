@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>将棋ゲーム</title>
+<style>
+body{
+  font-family:sans-serif;
+  text-align:center;
+  background:#f5f1e8;
+}
+#layout{
+  display:flex;
+  justify-content:center;
+  gap:20px;
+}
+.ad{
+  width:160px;
+  min-height:600px;
+  background:#fff;
+  border:2px dashed #999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#777;
+}
+#board{
+  display:grid;
+  grid-template-columns:repeat(9,60px);
+  grid-template-rows:repeat(9,60px);
+  border:3px solid #5b3a1e;
+  background:#d9a441;
+}
+.cell{
+  width:60px;
+  height:60px;
+  border:1px solid #8b5a2b;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.cell.selected{background:#ffe066;}
+.piece{
+  width:46px;
+  height:50px;
+  background:#f7d27c;
+  border:2px solid #5b3a1e;
+  clip-path:polygon(50% 0%,100% 25%,85% 100%,15% 100%,0% 25%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+  font-size:24px;
+}
+.gote{transform:rotate(180deg);}
+#side{
+  width:230px;
+  text-align:left;
+}
+.hand{
+  min-height:70px;
+  padding:10px;
+  background:#fff8dc;
+  border:2px solid #8b5a2b;
+  margin-bottom:15px;
+}
+.hand-piece{
+  display:inline-block;
+  padding:6px 10px;
+  margin:4px;
+  background:#f7d27c;
+  border:1px solid #5b3a1e;
+  cursor:pointer;
+}
+.active{outline:3px solid red;}
+button{
+  padding:10px 18px;
+  cursor:pointer;
+}
+#status{
+  font-size:20px;
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<h1>将棋ゲーム</h1>
+<p id="status">先手の番</p>
+
+<div id="layout">
+  <div class="ad">
+    広告エリア<br>
+    <!-- ここにAdSenseコード -->
+  </div>
+
+  <div id="board"></div>
+
+  <div id="side">
+    <h3>後手の持ち駒</h3>
+    <div id="goteHand" class="hand"></div>
+
+    <h3>先手の持ち駒</h3>
+    <div id="senteHand" class="hand"></div>
+
+    <button onclick="resetGame()">リセット</button>
+  </div>
+
+  <div class="ad">
+    広告エリア<br>
+    <!-- ここにAdSenseコード -->
+  </div>
+</div>
+
+<script>
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const senteHandEl = document.getElementById("senteHand");
+const goteHandEl = document.getElementById("goteHand");
+
+const PIECES = {
+  king:"王", rook:"飛", bishop:"角", gold:"金", silver:"銀",
+  knight:"桂", lance:"香", pawn:"歩",
+  proRook:"龍", proBishop:"馬", proSilver:"全",
+  proKnight:"圭", proLance:"杏", proPawn:"と"
+};
+
+let board, turn, selected, selectedHand, hands, gameOver;
+
+function piece(type, owner){ return {type, owner}; }
+function enemy(o){ return o === "sente" ? "gote" : "sente"; }
+function dir(o){ return o === "sente" ? -1 : 1; }
+
+function resetGame(){
+  board = Array.from({length:9},()=>Array(9).fill(null));
+  hands = {sente:[], gote:[]};
+  turn = "sente";
+  selected = null;
+  selectedHand = null;
+  gameOver = false;
+
+  board[0] = [
+    piece("lance","gote"),piece("knight","gote"),piece("silver","gote"),
+    piece("gold","gote"),piece("king","gote"),piece("gold","gote"),
+    piece("silver","gote"),piece("knight","gote"),piece("lance","gote")
+  ];
+  board[1][1] = piece("rook","gote");
+  board[1][7] = piece("bishop","gote");
+  for(let i=0;i<9;i++) board[2][i] = piece("pawn","gote");
+
+  board[8] = [
+    piece("lance","sente"),piece("knight","sente"),piece("silver","sente"),
+    piece("gold","sente"),piece("king","sente"),piece("gold","sente"),
+    piece("silver","sente"),piece("knight","sente"),piece("lance","sente")
+  ];
+  board[7][1] = piece("bishop","sente");
+  board[7][7] = piece("rook","sente");
+  for(let i=0;i<9;i++) board[6][i] = piece("pawn","sente");
+
+  render();
+}
+
+function render(){
+  boardEl.innerHTML = "";
+
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      if(selected && selected.r===r && selected.c===c) cell.classList.add("selected");
+      cell.onclick = () => clickCell(r,c);
+
+      const p = board[r][c];
+      if(p){
+        const el = document.createElement("div");
+        el.className = "piece";
+        if(p.owner==="gote") el.classList.add("gote");
+        el.textContent = PIECES[p.type];
+        cell.appendChild(el);
+      }
+      boardEl.appendChild(cell);
+    }
+  }
+
+  renderHands();
+
+  const check = isInCheck(turn);
+  const mate = isCheckmate(turn);
+
+  if(mate){
+    statusEl.textContent = `${turn === "sente" ? "先手" : "後手"}が詰み。${enemy(turn) === "sente" ? "先手" : "後手"}の勝ち！`;
+    gameOver = true;
+  }else if(check){
+    statusEl.textContent = `${turn === "sente" ? "先手" : "後手"}の番：王手されています`;
+  }else{
+    statusEl.textContent = turn === "sente" ? "先手の番" : "後手CPUの番";
+  }
+}
+
+function renderHands(){
+  senteHandEl.innerHTML = "";
+  goteHandEl.innerHTML = "";
+  renderHand("sente", senteHandEl);
+  renderHand("gote", goteHandEl);
+}
+
+function renderHand(owner, el){
+  const counts = {};
+  hands[owner].forEach(t => counts[t] = (counts[t] || 0) + 1);
+
+  Object.keys(counts).forEach(type=>{
+    const btn = document.createElement("span");
+    btn.className = "hand-piece";
+    if(selectedHand && selectedHand.owner===owner && selectedHand.type===type){
+      btn.classList.add("active");
+    }
+    btn.textContent = `${PIECES[type]}×${counts[type]}`;
+    btn.onclick = () => {
+      if(turn !== "sente" || owner !== "sente" || gameOver) return;
+      selected = null;
+      selectedHand = {owner,type};
+      render();
+    };
+    el.appendChild(btn);
+  });
+}
+
+function clickCell(r,c){
+  if(gameOver || turn !== "sente") return;
+
+  const target = board[r][c];
+
+  if(selectedHand){
+    const move = {drop:true, type:selectedHand.type, to:{r,c}};
+    if(isLegalMove("sente", move)){
+      applyMove("sente", move, true);
+    }else{
+      alert("そこには打てません");
+    }
+    return;
+  }
+
+  if(!selected){
+    if(target && target.owner === "sente"){
+      selected = {r,c};
+      render();
+    }
+    return;
+  }
+
+  const move = {from:selected, to:{r,c}};
+
+  if(isLegalMove("sente", move)){
+    applyMove("sente", move, true);
+  }else{
+    if(target && target.owner === "sente"){
+      selected = {r,c};
+      render();
+    }else{
+      alert("その場所には動けません");
+    }
+  }
+}
+
+function applyMove(owner, move, human=false){
+  if(move.drop){
+    board[move.to.r][move.to.c] = piece(move.type, owner);
+    hands[owner].splice(hands[owner].indexOf(move.type),1);
+  }else{
+    const p = board[move.from.r][move.from.c];
+    const captured = board[move.to.r][move.to.c];
+
+    if(captured){
+      hands[owner].push(unpromote(captured.type));
+    }
+
+    board[move.to.r][move.to.c] = p;
+    board[move.from.r][move.from.c] = null;
+
+    if(canPromote(p, move.from.r, move.to.r)){
+      if(human){
+        if(confirm("成りますか？")) p.type = promote(p.type);
+      }else{
+        p.type = promote(p.type);
+      }
+    }
+  }
+
+  selected = null;
+  selectedHand = null;
+  turn = enemy(turn);
+  render();
+
+  if(!gameOver && turn === "gote"){
+    setTimeout(cpuMove, 500);
+  }
+}
+
+function cpuMove(){
+  const moves = getAllLegalMoves("gote");
+  if(moves.length === 0){
+    render();
+    return;
+  }
+
+  const captureMoves = moves.filter(m => !m.drop && board[m.to.r][m.to.c]);
+  const chosen = captureMoves.length
+    ? captureMoves[Math.floor(Math.random()*captureMoves.length)]
+    : moves[Math.floor(Math.random()*moves.length)];
+
+  applyMove("gote", chosen, false);
+}
+
+function getAllLegalMoves(owner){
+  const moves = [];
+
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      const p = board[r][c];
+      if(!p || p.owner !== owner) continue;
+
+      for(let tr=0;tr<9;tr++){
+        for(let tc=0;tc<9;tc++){
+          const move = {from:{r,c}, to:{r:tr,c:tc}};
+          if(isLegalMove(owner, move)) moves.push(move);
+        }
+      }
+    }
+  }
+
+  [...new Set(hands[owner])].forEach(type=>{
+    for(let r=0;r<9;r++){
+      for(let c=0;c<9;c++){
+        const move = {drop:true, type, to:{r,c}};
+        if(isLegalMove(owner, move)) moves.push(move);
+      }
+    }
+  });
+
+  return moves;
+}
+
+function isLegalMove(owner, move){
+  if(move.drop){
+    if(board[move.to.r][move.to.c]) return false;
+    if(!canDrop(move.type, owner, move.to.r, move.to.c)) return false;
+  }else{
+    const p = board[move.from.r][move.from.c];
+    if(!p || p.owner !== owner) return false;
+
+    const target = board[move.to.r][move.to.c];
+    if(target && target.owner === owner) return false;
+
+    if(!canMoveBasic(p, move.from.r, move.from.c, move.to.r, move.to.c)) return false;
+  }
+
+  const saved = cloneBoard();
+  const savedHands = cloneHands();
+
+  applyMoveVirtual(owner, move);
+  const illegal = isInCheck(owner);
+
+  board = saved;
+  hands = savedHands;
+
+  return !illegal;
+}
+
+function applyMoveVirtual(owner, move){
+  if(move.drop){
+    board[move.to.r][move.to.c] = piece(move.type, owner);
+    hands[owner].splice(hands[owner].indexOf(move.type),1);
+  }else{
+    const p = board[move.from.r][move.from.c];
+    const captured = board[move.to.r][move.to.c];
+    if(captured) hands[owner].push(unpromote(captured.type));
+    board[move.to.r][move.to.c] = p;
+    board[move.from.r][move.from.c] = null;
+  }
+}
+
+function isInCheck(owner){
+  const king = findKing(owner);
+  if(!king) return true;
+
+  const opp = enemy(owner);
+
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      const p = board[r][c];
+      if(p && p.owner === opp){
+        if(canMoveBasic(p, r, c, king.r, king.c)){
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function isCheckmate(owner){
+  return isInCheck(owner) && getAllLegalMoves(owner).length === 0;
+}
+
+function findKing(owner){
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      const p = board[r][c];
+      if(p && p.owner === owner && p.type === "king"){
+        return {r,c};
+      }
+    }
+  }
+  return null;
+}
+
+function canMoveBasic(p, fr, fc, tr, tc){
+  if(fr===tr && fc===tc) return false;
+  if(tr<0 || tr>8 || tc<0 || tc>8) return false;
+
+  const dr = tr-fr;
+  const dc = tc-fc;
+  const f = dir(p.owner);
+
+  switch(p.type){
+    case "king":
+      return Math.abs(dr)<=1 && Math.abs(dc)<=1;
+
+    case "gold":
+    case "proSilver":
+    case "proKnight":
+    case "proLance":
+    case "proPawn":
+      return goldMove(dr,dc,f);
+
+    case "silver":
+      return (dr===f && Math.abs(dc)<=1) || (dr===-f && Math.abs(dc)===1);
+
+    case "knight":
+      return dr===f*2 && Math.abs(dc)===1;
+
+    case "pawn":
+      return dr===f && dc===0;
+
+    case "lance":
+      return dc===0 && dr*f>0 && clearPath(fr,fc,tr,tc);
+
+    case "rook":
+      return (fr===tr || fc===tc) && clearPath(fr,fc,tr,tc);
+
+    case "bishop":
+      return Math.abs(dr)===Math.abs(dc) && clearPath(fr,fc,tr,tc);
+
+    case "proRook":
+      return ((fr===tr || fc===tc) && clearPath(fr,fc,tr,tc)) ||
+             (Math.abs(dr)===1 && Math.abs(dc)===1);
+
+    case "proBishop":
+      return (Math.abs(dr)===Math.abs(dc) && clearPath(fr,fc,tr,tc)) ||
+             (Math.abs(dr)+Math.abs(dc)===1);
+  }
+  return false;
+}
+
+function goldMove(dr,dc,f){
+  return (dr===f && Math.abs(dc)<=1) ||
+         (dr===0 && Math.abs(dc)===1) ||
+         (dr===-f && dc===0);
+}
+
+function clearPath(fr,fc,tr,tc){
+  const sr = Math.sign(tr-fr);
+  const sc = Math.sign(tc-fc);
+  let r = fr + sr;
+  let c = fc + sc;
+
+  while(r !== tr || c !== tc){
+    if(board[r][c]) return false;
+    r += sr;
+    c += sc;
+  }
+  return true;
+}
+
+function canPromote(p, fromRow, toRow){
+  const list = ["rook","bishop","silver","knight","lance","pawn"];
+  if(!list.includes(p.type)) return false;
+
+  if(p.owner === "sente"){
+    return fromRow <= 2 || toRow <= 2;
+  }else{
+    return fromRow >= 6 || toRow >= 6;
+  }
+}
+
+function promote(type){
+  return {
+    rook:"proRook", bishop:"proBishop", silver:"proSilver",
+    knight:"proKnight", lance:"proLance", pawn:"proPawn"
+  }[type] || type;
+}
+
+function unpromote(type){
+  return {
+    proRook:"rook", proBishop:"bishop", proSilver:"silver",
+    proKnight:"knight", proLance:"lance", proPawn:"pawn"
+  }[type] || type;
+}
+
+function canDrop(type, owner, r, c){
+  if(type === "pawn"){
+    if((owner==="sente" && r===0) || (owner==="gote" && r===8)) return false;
+
+    for(let row=0; row<9; row++){
+      const p = board[row][c];
+      if(p && p.owner===owner && p.type==="pawn") return false;
+    }
+  }
+
+  if(type === "lance"){
+    if((owner==="sente" && r===0) || (owner==="gote" && r===8)) return false;
+  }
+
+  if(type === "knight"){
+    if((owner==="sente" && r<=1) || (owner==="gote" && r>=7)) return false;
+  }
+
+  return true;
+}
+
+function cloneBoard(){
+  return board.map(row => row.map(p => p ? {...p} : null));
+}
+
+function cloneHands(){
+  return {
+    sente:[...hands.sente],
+    gote:[...hands.gote]
+  };
+}
+
+resetGame();
+</script>
+
+</body>
+</html>
